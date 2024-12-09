@@ -2,7 +2,8 @@ define(['jquery'], function ($) {
 	return function () {
 		const self = this;
 
-		let style = '\
+		let style =
+			'\
 		<style id="copy-lead-style">\
 			.js-copy-lead {\
 				background-color: #313942;\
@@ -67,8 +68,7 @@ define(['jquery'], function ($) {
 
 		this.callbacks = {
 			render: function () {
-				if ($('#copy-lead-style').length == 0)
-					$('head').append(style);
+				if ($('#copy-lead-style').length == 0) $('head').append(style);
 
 				self.render_template({
 					caption: {
@@ -111,7 +111,7 @@ define(['jquery'], function ($) {
 						replaceTextSelectButton(select_pipeline, 'Загрузка...');
 					},
 					error: function () {
-						replaceTextSelectButton(select_pipeline, 'Ошибка');
+						replaceTextSelectButton(select_pipeline, 'Ошибка12');
 					},
 					success: function (data) {
 						replaceTextSelectButton(select_pipeline, 'Выбрать');
@@ -144,7 +144,8 @@ define(['jquery'], function ($) {
 					let status_id = $(this).val();
 					if (status_id != '') {
 						if ($('.copy-lead .select-status').length == 0) {
-							$(select_pipeline).after('\
+							$(select_pipeline).after(
+								'\
 							<p class="select-title">Этап:</p>\
 							<div class="control--select linked-form__select select-status">\
 								<ul class="custom-scroll control--select--list">\
@@ -162,11 +163,18 @@ define(['jquery'], function ($) {
 								</button>\
 								\
 								<input type="hidden" class="control--select--input " name="select-status" value="" data-prev-value="">\
-							</div>');
+							</div>'
+							);
 						}
-						if ($('.copy-lead .select-status .control--select--list--item').length > 1) {
-							$('.copy-lead .select-status .control--select--list--item:not(:first-child').remove();
-							$('.copy-lead .select-status .control--select--list--item').addClass('control--select--list--item-selected');
+						if (
+							$('.copy-lead .select-status .control--select--list--item').length > 1
+						) {
+							$(
+								'.copy-lead .select-status .control--select--list--item:not(:first-child'
+							).remove();
+							$('.copy-lead .select-status .control--select--list--item').addClass(
+								'control--select--list--item-selected'
+							);
 							replaceTextSelectButton('.copy-lead .select-status', 'Выбрать');
 							$('[name="select-status"]').val('');
 						}
@@ -204,32 +212,105 @@ define(['jquery'], function ($) {
 					}
 				});
 
-				$('.copy-lead__button').on('click', function () {
+				$('.copy-lead__button').on('click', async function () {
 					if (!$(this).hasClass('copy-lead__button_disable')) {
+						const STATUS = {
+							SUCCESS: 'success',
+							ERROR: 'error',
+							LOADING: 'loading'
+						};
 						let pipeline_id = Number($('.copy-lead [name="select-pipeline"]').val()),
 							status_id = Number($('.copy-lead [name="select-status"]').val()),
 							lead_id = APP.data.current_card.id,
-							success = false;
-						
-						if (success) {
-							$('.copy-lead__info')
-								.removeClass('copy-lead__info_load copy-lead__info_error')
-								.addClass('copy-lead__info_success')
-								.text('Готово!');
-						} else {
-							$('.copy-lead__info')
-								.removeClass('copy-lead__info_load copy-lead__info_success')
-								.addClass('copy-lead__info_error')
-								.text('Ошибка');
+							status;
+
+						try {
+							status = STATUS.LOADING;
+
+							const getLeadResponse = await fetch(
+								`/api/v4/leads/${lead_id}?with=contacts`
+							);
+							const {
+								name,
+								group_id,
+								price,
+								responsible_user_id,
+								created_at,
+								updated_at,
+								closed_at,
+								closest_task_at,
+								is_deleted,
+								custom_fields_values,
+								score,
+								labor_cost,
+								_embedded
+							} = await getLeadResponse.json();
+
+							const data = [
+								{
+									name: `${name} (копия)`,
+									pipeline_id,
+									status_id,
+									group_id,
+									price,
+									responsible_user_id,
+									created_at,
+									updated_at,
+									closed_at,
+									closest_task_at,
+									is_deleted,
+									custom_fields_values,
+									score,
+									labor_cost,
+									_embedded: {
+										tags: (_embedded.tags ?? []).map(({id}) => ({
+											id
+										})),
+										companies: (_embedded.companies ?? []).map(({id}) => ({
+											id
+										})),
+										contacts: (_embedded.contacts ?? []).map(
+											({id, is_main}) => ({id, is_main})
+										)
+									}
+								}
+							];
+
+							const createLeadResponse = await fetch('/api/v4/leads', {
+								method: 'POST',
+								body: JSON.stringify(data)
+							});
+
+							await createLeadResponse.json();
+							status = STATUS.SUCCESS;
+
+							if (status === STATUS.SUCCESS) {
+								$('.copy-lead__info')
+									.removeClass('copy-lead__info_load copy-lead__info_error')
+									.addClass('copy-lead__info_success')
+									.text('Готово!');
+							} else if (status === STATUS.ERROR) {
+								$('.copy-lead__info')
+									.removeClass('copy-lead__info_load copy-lead__info_success')
+									.addClass('copy-lead__info_error')
+									.text('Ошибка');
+							} else if (status === STATUS.LOADING) {
+								$('.copy-lead__info').text('Копирование...');
+							}
+						} catch (e) {
+							console.error(e);
+							status = STATUS.ERROR;
 						}
 					}
 				});
 
 				$('.js-copy-lead img').remove();
-				$('.js-copy-lead span').first().after('\
+				$('.js-copy-lead span').first().after(
+					'\
 					<span class="card-widgets__widget__caption__logo">Скопировать</span>\
 					<span class="card-widgets__widget__caption__logo_min">Скоп</span>\
-				');
+				'
+				);
 
 				setInterval(() => {
 					if ($('.card-widgets.js-widgets-active').length > 0) {
@@ -274,5 +355,5 @@ define(['jquery'], function ($) {
 		};
 
 		return this;
-	}
+	};
 });
